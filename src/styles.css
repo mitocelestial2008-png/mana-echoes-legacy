@@ -62,24 +62,25 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
+  --radius: 0rem;
+  --mana: oklch(0.65 0.18 245);
+  --background: oklch(0.16 0.04 285);
+  --foreground: oklch(0.95 0.03 90);
+  --card: oklch(0.22 0.07 280);
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
+  --primary: oklch(0.85 0.15 85);
+  --primary-foreground: oklch(0.2 0.05 285);
+  --secondary: oklch(0.3 0.08 280);
   --secondary-foreground: oklch(0.208 0.042 265.755);
   --muted: oklch(0.968 0.007 247.896);
   --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
+  --accent: oklch(0.75 0.15 200);
   --accent-foreground: oklch(0.208 0.042 265.755);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
+  --border: oklch(0.7 0.1 80);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
   --chart-1: oklch(0.646 0.222 41.116);
@@ -142,3 +143,10 @@
     color: var(--color-foreground);
   }
 }
+
+.font-pixel { font-family: 'Press Start 2P', monospace; }
+.font-body { font-family: 'VT323', monospace; }
+.game-frame { border: 4px solid var(--border); box-shadow: 0 0 0 4px var(--background), 0 0 0 6px var(--primary); }
+.game-panel { background: linear-gradient(180deg, oklch(0.3 0.1 270 / 0.92), oklch(0.18 0.07 280 / 0.92)); border: 2px solid var(--border); box-shadow: inset 0 0 0 1px oklch(0.1 0.03 280), 2px 2px 0 oklch(0 0 0 / 0.5); border-radius: 4px; }
+.game-btn { background: var(--secondary); border: 2px solid var(--border); padding: 4px 8px; font-size: 9px; color: var(--foreground); }
+.game-btn:hover:not(:disabled) { background: var(--primary); color: var(--primary-foreground); }
