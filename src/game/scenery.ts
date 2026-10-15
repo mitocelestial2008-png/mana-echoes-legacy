@@ -16,7 +16,6 @@ export function drawBuildings(c:Ctx,time:number) {
     box(c,x+w-18,y-9,8,15,'#675c61');box(c,x+w-19,y-10,10,3,'#a6a09a');
     for(let i=0;i<3;i++){const phase=(time*7+i*7)%23;c.globalAlpha=(1-phase/23)*.45;box(c,x+w-14+Math.sin(time+i)*3,y-11-phase,4+i*2,3+i,'#e1e4d3');}c.globalAlpha=1;
     box(c,d.tx*TS-10,d.ty*TS-4,4,6,'#73583e');box(c,d.tx*TS-9,d.ty*TS-3,2,3,Math.sin(time*6)>.1?'#ffe3a0':'#e9b36c');
-    if(Math.hypot(d.tx*TS+8-(c.canvas.width/2),0)<0){} // all signs are drawn in world space
     box(c,x+w+2,y+h-19,2,18,'#785e43');box(c,x+w-2,y+h-23,12,8,'#bc9a69');box(c,x+w+1,y+h-21,6,1,'#655443');
   }
 }
