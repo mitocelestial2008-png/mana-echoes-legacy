@@ -1,14 +1,14 @@
 import { BOSSES, NPCS, STATUES, type Biome } from "./data";
 
-export const W = 240;
-export const H = 180;
+export const W = 320;
+export const H = 240;
 export const TS = 16;
 
 export const T = {
   GRASS: 0, FLOWER: 1, PATH: 2, WATER: 3, TREE: 4, SAND: 5, DUNE: 6, ROCK: 7, SNOW: 8, ICE: 9,
-  CAVE: 10, CWALL: 11, CRYSTAL: 12, COBBLE: 13, WALL: 14, ROOF: 15, PINE: 16, BUSH: 17, PILLAR: 18, BRIDGE: 19, DTREE: 20, CACTUS: 21,
+  CAVE: 10, CWALL: 11, CRYSTAL: 12, COBBLE: 13, WALL: 14, ROOF: 15, PINE: 16, BUSH: 17, PILLAR: 18, BRIDGE: 19, DTREE: 20, CACTUS: 21, FLOOR: 22, PANEL: 23, DOOR: 24, FURNITURE: 25,
 } as const;
-export const SOLID = new Set<number>([T.WATER, T.TREE, T.ROCK, T.CWALL, T.CRYSTAL, T.WALL, T.ROOF, T.PINE, T.PILLAR, T.DTREE, T.CACTUS]);
+export const SOLID = new Set<number>([T.WATER, T.TREE, T.ROCK, T.CWALL, T.CRYSTAL, T.WALL, T.ROOF, T.PINE, T.PILLAR, T.DTREE, T.CACTUS, T.PANEL, T.FURNITURE]);
 
 export function hash(x: number, y: number, s = 0) {
   let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(s, 1442695041);
@@ -125,6 +125,11 @@ export function generateWorld(): World {
   road([[118, 40], [150, 50], [184, 58], [200, 45], [218, 22]], 2);
   road([[46, 108], [70, 140], [110, 150]]);
   road([[196, 122], [200, 80], [184, 58]]);
+
+  road([[196, 122], [236, 145], [261, 162], [288, 197]], 2);
+  road([[122, 126], [131, 170], [147, 197], [182, 216]], 2);
+  road([[46, 108], [32, 155], [50, 194]], 2);
+  road([[118, 36], [90, 30], [74, 29]], 1);
 
   // cave tunnels
   let cx = 184, cy = 58;
