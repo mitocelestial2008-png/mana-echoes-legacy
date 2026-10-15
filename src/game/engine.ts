@@ -4,6 +4,8 @@ import {
 } from "./data";
 import { generateWorld, W, H, TS, T, tileAt, biomeOf, solidAt, BIOME_LIST, hash, type World } from "./world";
 import { buildTiles, drawChar, drawEnemy, drawStatue, drawNode } from "./gfx";
+import { BUILDINGS, TREASURES, ROOM, doorOf, createInterior, prepareExploration, canClaimTreasure, type Building } from './exploration';
+import { drawBuildings, drawGroundDetails, drawInterior, drawTreasure } from './scenery';
 import { Audio } from "./audio";
 
 export const VW = 480;
@@ -33,6 +35,19 @@ export interface Dialog { npc: NpcDef; text: string; choices: DialogChoice[] }
 
 export class Game {
   world: World;
+  overworld: World;
+  interior: Building | null = null;
+  returnPosition = { x: 0, y: 0 };
+  discoveries = new Set<string>();
+  openedChests = new Set<string>();
+  transition = 0;
+  doorCooldown = 0;
+  get areaName() { return this.interior?.name ?? (Math.hypot(this.p.x / TS - 122, this.p.y / TS - 126) < 19 ? 'Vila de Potos' : BIOME_NAMES[this.biome]); }
+  get localNpcs(): NpcDef[] {
+    if (!this.interior) return NPCS;
+    const npc = NPCS.find(n => n.id === this.interior?.resident);
+    return npc ? [{ ...npc, tx: 121, ty: 100 }] : [];
+  }
   tiles: HTMLCanvasElement[][] = [];
   minimap!: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
@@ -84,12 +99,18 @@ export class Game {
   readonly INV_MAX = 24;
 
   constructor(public canvas: HTMLCanvasElement) {
-    this.ctx = canvas.getContext("2d")!;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas indisponível");
+    this.ctx = context;
     this.ctx.imageSmoothingEnabled = false;
     this.light = document.createElement("canvas");
     this.light.width = VW; this.light.height = VH;
-    this.lctx = this.light.getContext("2d")!;
+    const lightContext = this.light.getContext("2d");
+    if (!lightContext) throw new Error("Iluminação indisponível");
+    this.lctx = lightContext;
     this.world = generateWorld();
+    prepareExploration(this.world);
+    this.overworld = this.world;
     this.tiles = buildTiles();
     this.buildMinimap();
     this.spawnEnemies();
@@ -314,6 +335,7 @@ export class Game {
 
   attack(aim?: { x: number; y: number }) {
     const p = this.p;
+    if (this.interior) return;
     if (p.atkCd > 0 || p.dead > 0) return;
     const w = this.weapon();
     const kind = w.weapon ?? "sword";
@@ -356,6 +378,7 @@ export class Game {
 
   cast(id: SpiritId) {
     const p = this.p;
+    if (this.interior) return;
     if (!p.spirits.includes(id) || p.dead > 0) return;
     p.spell = id;
     const sp = SPIRITS.find((s) => s.id === id)!;
@@ -468,6 +491,7 @@ export class Game {
     this.audio.sfx("coin");
   }
   travel(id: string) {
+    if (this.interior) this.leaveInterior();
     const s = STATUES.find((x) => x.id === id);
     if (!s || !this.statues.has(id)) return;
     this.p.x = s.tx * TS + 8; this.p.y = (s.ty + 2) * TS + 8; this.p.vx = this.p.vy = 0;
@@ -535,7 +559,7 @@ export class Game {
   }
 
   // ---------- interaction ----------
-  nearNpc(r = 22) { return NPCS.find((n) => Math.hypot(n.tx * TS + 8 - this.p.x, n.ty * TS + 8 - this.p.y) < r) ?? null; }
+  nearNpc(r = 22) { return this.localNpcs.find((n) => Math.hypot(n.tx * TS + 8 - this.p.x, n.ty * TS + 8 - this.p.y) < r) ?? null; }
   tryGather(silent = false) {
     const p = this.p;
     for (const n of this.world.nodes) {
@@ -555,9 +579,58 @@ export class Game {
     return false;
   }
   interact() {
+    if (this.interactExploration()) return;
     const npc = this.nearNpc(26);
     if (npc) { this.talk(npc); return; }
     if (this.tryGather()) return;
+  }
+
+  enterInterior(b: Building) {
+    if (this.interior || this.doorCooldown > 0) return;
+    this.returnPosition = { x: this.p.x, y: (doorOf(b).ty + 1.7) * TS };
+    this.interior = b; this.world = createInterior(b);
+    this.p.x = ROOM.spawnX; this.p.y = ROOM.spawnY;
+    this.clearTransition(); this.discoveries.add(b.id);
+    this.biomeBanner = { name: b.name, t: 3 };
+    this.toast(b.secret ? 'Uma passagem esquecida... novo segredo descoberto!' : b.name, '#dfca91');
+    this.save();
+  }
+  leaveInterior() {
+    if (!this.interior) return;
+    this.interior = null; this.world = this.overworld;
+    this.p.x = this.returnPosition.x; this.p.y = this.returnPosition.y;
+    this.clearTransition(); this.save();
+  }
+  clearTransition() {
+    this.p.vx = this.p.vy = 0; this.moveTarget = null; this.targetEnemy = null; this.talkTarget = null;
+    this.projs = []; this.teles = []; this.parts = []; this.texts = [];
+    this.doorCooldown = 0.8; this.transition = 0.65; this.audio.sfx('warp');
+  }
+  claimChest(id: string, gold: number, item: string, qty: number, name: string) {
+    if (!canClaimTreasure(this.openedChests, id)) { this.toast('O baú já está vazio.'); return; }
+    if (!this.addItem(item, qty)) return;
+    this.openedChests.add(id); this.p.gold += gold;
+    this.toast(`${name}: +${gold} ouro · ${ITEMS[item].name} ×${qty}`, '#f4dc91');
+    this.gainXp(20); this.audio.sfx('pickup'); this.burst(this.p.x, this.p.y-12, '#ffe1a0', 22, 55, 2, -30); this.save();
+  }
+  interactExploration(): boolean {
+    const p = this.p, near = (x:number,y:number,r=28) => Math.hypot(p.x-x*TS-8,p.y-y*TS-8)<r;
+    if (this.interior) {
+      if(near(ROOM.exitX,ROOM.exitY,32)){ this.leaveInterior(); return true; }
+      if(near(110,106,30)){this.claimChest(`house-${this.interior.id}`,75,this.interior.secret?'elixir':'ether',2,'Tesouro de '+this.interior.name);return true;}
+      if(near(114,100,42)){ this.toast(this.interior.note); return true; }
+      if(near(127,105,35) && this.interior.kind === 'inn') {p.hp=this.maxHp();p.mp=this.maxMp();this.audio.sfx('heal');this.toast('Você descansou. HP e MP restaurados.');return true;}
+      if(near(109,97,38) && this.interior.id === 'archive'){
+        const b=BUILDINGS.find(b=>b.id==='roots');
+        if(b){this.leaveInterior();this.doorCooldown=0;this.enterInterior(b);this.toast('A estante se move... um santuário sob as raízes!');} return true;
+      }
+      return false;
+    }
+    const b=BUILDINGS.find(b=>{const d=doorOf(b);return near(d.tx,d.ty,30);});
+    if(b){this.enterInterior(b);return true;}
+    const t=TREASURES.find(t=>near(t.tx,t.ty,26));
+    if(t){this.claimChest(t.id,t.gold,t.item,t.qty,t.name);return true;}
+    return false;
   }
 
   // ---------- input ----------
@@ -566,10 +639,11 @@ export class Game {
     const wx = sx + this.cam.x, wy = sy + this.cam.y;
     // minimap
     if (sx > VW - 78 && sy < 58) { this.onMapClick?.(); return; }
+    if (this.interior && (right)) return;
     if (right) { this.cast(this.p.spell); return; }
-    const npc = NPCS.find((n) => Math.hypot(n.tx * TS + 8 - wx, n.ty * TS - wy) < 14);
+    const npc = this.localNpcs.find((n) => Math.hypot(n.tx * TS + 8 - wx, n.ty * TS - wy) < 14);
     if (npc) { this.talkTarget = npc; this.moveTarget = { x: npc.tx * TS + 8, y: npc.ty * TS + 8 }; this.targetEnemy = null; return; }
-    const en = this.enemies.find((e) => e.alive && Math.hypot(e.x - wx, e.y - 8 - wy) < (e.boss ? 26 : 12));
+    const en = !this.interior && this.enemies.find((e) => e.alive && Math.hypot(e.x - wx, e.y - 8 - wy) < (e.boss ? 26 : 12));
     if (en) { this.targetEnemy = en; this.moveTarget = null; this.talkTarget = null; return; }
     this.targetEnemy = null; this.talkTarget = null;
     this.moveTarget = { x: wx, y: wy };
@@ -588,6 +662,8 @@ export class Game {
   update(dt: number) {
     if (!this.started || this.paused || this.dialog || this.openStation) { this.updateFx(dt * 0.0); return; }
     this.clock += dt;
+    this.transition = Math.max(0, this.transition-dt);
+    this.doorCooldown = Math.max(0, this.doorCooldown-dt);
     this.time = (this.time + dt / 480) % 1;
     const p = this.p;
     const w = this.world;
@@ -648,14 +724,19 @@ export class Game {
     p.frame = Math.floor(p.frameT) % 4;
     p.atkCd -= dt; p.spellCd -= dt; p.inv -= dt;
     if (p.attackT > 0) p.attackT -= dt * 4;
-    if (this.keys.has("Space") || this.keys.has("KeyJ")) this.attack();
+    if (!this.interior && (this.keys.has("Space") || this.keys.has("KeyJ"))) this.attack();
+
+    if(this.doorCooldown<=0){
+      if(this.interior && Math.hypot(p.x-(ROOM.exitX*TS+8),p.y-(ROOM.exitY*TS+8))<12){this.leaveInterior();return;}
+      if(!this.interior){const b=BUILDINGS.find(b=>{const d=doorOf(b);return Math.hypot(p.x-d.tx*TS-8,p.y-d.ty*TS-8)<11;});if(b){this.enterInterior(b);return;}}
+    }
 
     // regen
     p.mp = Math.min(this.maxMp(), p.mp + dt * (0.6 + this.stats().wis * 0.12));
     p.hp = Math.min(this.maxHp(), p.hp + dt * (0.3 + this.stats().vit * 0.05));
 
     // statues
-    for (const s of STATUES) {
+    for (const s of this.interior ? [] : STATUES) {
       if (Math.hypot(s.tx * TS + 8 - p.x, s.ty * TS + 12 - p.y) < 22) {
         if (!this.statues.has(s.id)) {
           this.statues.add(s.id); this.toast(`Estátua de Mana ativada: ${s.name}`, "#80f0ff"); this.audio.sfx("warp");
@@ -669,8 +750,7 @@ export class Game {
     // nodes respawn
     for (const n of w.nodes) if (n.respawn > 0) n.respawn -= dt;
 
-    this.updateEnemies(dt);
-    this.updateProjectiles(dt);
+    if (!this.interior) { this.updateEnemies(dt); this.updateProjectiles(dt); }
     this.updateFx(dt);
 
     this.autosaveT += dt;
@@ -837,7 +917,8 @@ export class Game {
     this.shake = Math.max(0, this.shake - dt * 20);
   }
   darkness() {
-    if (this.biome === "cave") return 0.86;
+    if (this.interior) return 0.08;
+    if (this.biome === "cave") return 0.72;
     return Math.max(0, Math.cos(this.time * Math.PI * 2)) * 0.68;
   }
   timeLabel() {
@@ -862,6 +943,14 @@ export class Game {
       let v = Math.floor(hash(tx, ty, 1) * 4);
       if (t === T.WATER) v = (v + Math.floor(wt * 2)) % 4;
       c.drawImage(this.tiles[t][v], tx * TS, ty * TS);
+    }
+    drawGroundDetails(c,this.world,x0,y0,x1,y1,wt);
+    if(this.interior) {
+      drawInterior(c,this.interior,wt);
+      drawTreasure(c,110*TS+8,106*TS+12,this.openedChests.has(`house-${this.interior.id}`),wt);
+    } else {
+      drawBuildings(c,wt);
+      for(const t of TREASURES) if(t.tx>=x0-1&&t.tx<=x1&&t.ty>=y0-1&&t.ty<=y1)drawTreasure(c,t.tx*TS+8,t.ty*TS+12,this.openedChests.has(t.id),wt);
     }
     // nodes
     for (const n of this.world.nodes) {
@@ -888,7 +977,7 @@ export class Game {
       if (x < cx - 20 || x > cx + VW + 20 || y < cy - 30 || y > cy + VH + 30) continue;
       draws.push({ y, f: () => drawStatue(c, x, y, this.statues.has(s.id), wt) });
     }
-    for (const n of NPCS) {
+    for (const n of this.localNpcs) {
       const x = n.tx * TS + 8, y = n.ty * TS + 14;
       if (x < cx - 20 || x > cx + VW + 20 || y < cy - 30 || y > cy + VH + 30) continue;
       const near = Math.hypot(x - p.x, y - p.y) < 30;
@@ -899,7 +988,7 @@ export class Game {
       } });
     }
     for (const e of this.enemies) {
-      if (!e.alive || e.x < cx - 40 || e.x > cx + VW + 40 || e.y < cy - 40 || e.y > cy + VH + 50) continue;
+      if (this.interior || !e.alive || e.x < cx - 40 || e.x > cx + VW + 40 || e.y < cy - 40 || e.y > cy + VH + 50) continue;
       draws.push({ y: e.y, f: () => {
         if (e.boss) {
           const look = BOSS_LOOK[e.boss.def.id];
@@ -917,7 +1006,7 @@ export class Game {
     if (p.dead <= 0) draws.push({ y: p.y, f: () => {
       if (p.inv > 0 && Math.floor(p.inv * 20) % 2) return;
       const armor = ITEMS[p.equip.armor ?? "cloth"];
-      const ring = p.equip.amulet ? ITEMS[p.equip.amulet].color : undefined;
+      const ring = p.equip.amulet ? ITEMS[p.equip.amulet].color : "#ddc58e";
       const w = this.weapon();
       drawChar(c, p.x, p.y, { skin: "#f4c8a0", hair: "#e8a030", body: armor.color, legs: "#3a3060", accent: ring }, p.dir, p.frame, { kind: w.weapon ?? "sword", color: w.color }, Math.max(0, p.attackT));
     } });
@@ -977,7 +1066,7 @@ export class Game {
     const dusk = Math.max(0, 1 - Math.abs(this.time - 0.75) * 12) + Math.max(0, 1 - Math.abs(this.time - 0.25) * 12);
     if (dusk > 0 && this.biome !== "cave") { c.fillStyle = `rgba(255,120,40,${dusk * 0.15})`; c.fillRect(0, 0, VW, VH); }
     // weather
-    this.renderWeather();
+    if (!this.interior) this.renderWeather();
     // floating text
     c.translate(-cx, -cy);
     c.font = "8px 'Press Start 2P', monospace";
@@ -989,8 +1078,29 @@ export class Game {
     }
     c.globalAlpha = 1;
     c.setTransform(1, 0, 0, 1, 0, 0);
-    this.renderMinimap();
+    if (!this.interior) this.renderMinimap();
+    this.renderInteractionPrompt(c);
+    if(this.transition>0){c.fillStyle=`rgba(13,24,25,${Math.min(1,this.transition*1.5)})`;c.fillRect(0,0,VW,VH);}
     if (p.dead > 0) { c.fillStyle = `rgba(0,0,0,${Math.min(0.8, (2.5 - p.dead))})`; c.fillRect(0, 0, VW, VH); }
+  }
+  renderInteractionPrompt(c: CanvasRenderingContext2D) {
+    const p=this.p, near=(x:number,y:number,r=30)=>Math.hypot(p.x-x*TS-8,p.y-y*TS-8)<r;
+    let text='';
+    if(this.interior){
+      if(near(ROOM.exitX,ROOM.exitY,35))text='E · Sair';
+      else if(near(110,106,30))text='E · Abrir baú';
+      else if(near(114,100,42))text='E · Ler anotações';
+      else if(near(127,105,35)&&this.interior.kind==='inn')text='E · Descansar';
+      else if(near(109,97,38)&&this.interior.id==='archive')text='E · Examinar estante';
+    }else{
+      const b=BUILDINGS.find(b=>{const d=doorOf(b);return near(d.tx,d.ty);});
+      if(b)text='E · '+b.name;
+      else if(TREASURES.some(t=>near(t.tx,t.ty,26)))text='E · Abrir baú';
+    }
+    if(!text&&this.nearNpc(26))text='E · Conversar';
+    if(!text)return;
+    c.font='8px monospace';c.textAlign='center';const width=c.measureText(text).width+18;
+    c.fillStyle='#152d2f';c.fillRect(VW/2-width/2,VH-46,width,16);c.strokeStyle='#bfa87b';c.strokeRect(VW/2-width/2,VH-46,width,16);c.fillStyle='#f1e5c7';c.fillText(text,VW/2,VH-35);
   }
   renderWeather() {
     const c = this.ctx, dt = 1 / 60;
@@ -1042,7 +1152,8 @@ export class Game {
   save() {
     try {
       const data = {
-        p: { ...this.p, dead: 0 }, inventory: this.inventory, questStatus: this.questStatus, questProg: this.questProg,
+        p: { ...this.p, ...(this.interior ? this.returnPosition : {}), dead: 0 }, inventory: this.inventory, questStatus: this.questStatus, questProg: this.questProg,
+        discoveries: [...this.discoveries], openedChests: [...this.openedChests],
         statues: [...this.statues], bosses: [...this.bossesDone], time: this.time,
       };
       localStorage.setItem("mana-quest-save", JSON.stringify(data));
@@ -1054,6 +1165,7 @@ export class Game {
       const raw = localStorage.getItem("mana-quest-save"); if (!raw) return;
       const d = JSON.parse(raw);
       Object.assign(this.p, d.p);
+      this.discoveries = new Set(d.discoveries ?? []); this.openedChests = new Set(d.openedChests ?? []);
       this.inventory = d.inventory; this.questStatus = d.questStatus; this.questProg = d.questProg;
       this.statues = new Set(d.statues); this.bossesDone = new Set(d.bosses); this.time = d.time ?? 0.3;
       for (const e of this.enemies) if (e.boss && this.bossesDone.has(e.boss.def.id)) { e.alive = false; e.respawn = -1; }

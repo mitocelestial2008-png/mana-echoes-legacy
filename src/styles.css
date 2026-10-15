@@ -150,3 +150,47 @@
 .game-panel { background: linear-gradient(180deg, oklch(0.3 0.1 270 / 0.92), oklch(0.18 0.07 280 / 0.92)); border: 2px solid var(--border); box-shadow: inset 0 0 0 1px oklch(0.1 0.03 280), 2px 2px 0 oklch(0 0 0 / 0.5); border-radius: 4px; }
 .game-btn { background: var(--secondary); border: 2px solid var(--border); padding: 4px 8px; font-size: 9px; color: var(--foreground); }
 .game-btn:hover:not(:disabled) { background: var(--primary); color: var(--primary-foreground); }
+
+/* Mana Quest — forest glass, aged gold, and crisp pixel edges. */
+:root {
+  --background: oklch(0.14 0.018 170);
+  --foreground: oklch(0.93 0.025 91);
+  --primary: oklch(0.81 0.09 86);
+  --primary-foreground: oklch(0.19 0.025 165);
+  --secondary: oklch(0.25 0.032 164);
+  --secondary-foreground: oklch(0.91 0.025 91);
+  --accent: oklch(0.77 0.075 164);
+  --border: oklch(0.47 0.04 135);
+  --muted-foreground: oklch(0.62 0.028 151);
+  --panel-top: oklch(0.23 0.032 165 / .96);
+  --panel-bottom: oklch(0.16 0.023 170 / .96);
+  --game-shadow: oklch(0.06 0.01 165 / .6);
+  --title-veil: oklch(0.12 0.025 164 / .65);
+  --title-shadow: oklch(0.15 0.04 160);
+}
+.game-shell { display:flex; align-items:center; justify-content:center; padding:28px 34px; }
+.game-layout { width:100%; max-width:1440px; }
+.game-header { display:flex; align-items:center; justify-content:space-between; padding:0 0 22px; border-bottom:1px solid var(--border); gap:12px; }
+.game-brand { display:flex; align-items:center; gap:12px; color:var(--primary); font-size:15px; }
+.edition-label { color:var(--muted-foreground);font-size:7px;margin-left:12px; }
+.world-status {width:5px;height:5px;background:var(--accent);border-radius:50%;}
+.game-location { display:flex;justify-content:space-between;align-items:center;gap:12px;padding:17px 0;font-size:9px; }
+.game-viewport { border:1px solid var(--border);box-shadow:0 12px 44px var(--game-shadow); }
+.game-panel { background:linear-gradient(180deg,var(--panel-top),var(--panel-bottom));border:1px solid var(--border);box-shadow:2px 2px 0 var(--game-shadow);border-radius:3px; }
+.game-btn { height:auto;min-height:26px;border:1px solid var(--border);border-radius:2px;letter-spacing:0; }
+.game-frame {border:2px solid var(--border);box-shadow:none;}
+.game-toolbar {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;}
+.toolbar-actions {display:flex;gap:8px;}
+.footer-chapter {font-size:7px;color:var(--muted-foreground);}
+.status-bar {width:140px;}
+.title-screen {background:linear-gradient(180deg,var(--title-veil),var(--title-veil));}
+.title-eyebrow {font-size:8px;color:var(--foreground);}
+.game-title {font-size:48px;line-height:1.35;color:var(--primary);text-shadow:3px 4px 0 var(--title-shadow);}
+.game-title span {display:block;color:var(--foreground);}
+.title-story {text-shadow:1px 2px 0 var(--title-shadow);max-width:370px;}
+.title-chapter {font-size:7px;color:var(--accent);margin-top:6px;}
+.game-toasts {max-width:48%;}
+.game-toasts>div {line-height:1.65;}
+@media(max-width:900px){.game-shell{padding:16px 12px;}.edition-label{display:none}.quest-tracker{display:none}.game-title{font-size:36px}.title-screen{gap:12px}.game-header{padding-bottom:14px}.status-bar{width:110px}.game-location{font-size:8px}.game-toasts{top:110px}.title-story{font-size:20px;line-height:1;max-width:300px}}
+@media(max-width:600px){.game-shell{padding:12px 6px;align-items:flex-start}.game-brand{font-size:11px}.game-header>div:last-child{display:none}.game-title{font-size:26px}.title-story{display:none}.title-eyebrow,.title-chapter{font-size:6px}.game-location>span:last-child{font-size:14px}.footer-chapter{display:none}.toolbar-actions{gap:6px}.game-toasts{max-width:55%;top:70px}.game-toasts>div{font-size:6px}.status-bar{width:80px}.title-screen{gap:8px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}

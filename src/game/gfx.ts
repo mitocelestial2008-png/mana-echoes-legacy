@@ -7,12 +7,13 @@ const px = (c: Ctx, x: number, y: number, w: number, h: number, col: string) => 
 /** Builds 4 variants per tile type as 16x16 canvases. */
 export function buildTiles(): HTMLCanvasElement[][] {
   const out: HTMLCanvasElement[][] = [];
-  for (let t = 0; t <= 21; t++) {
+  for (let t = 0; t <= 25; t++) {
     const vars: HTMLCanvasElement[] = [];
     for (let v = 0; v < 4; v++) {
       const cv = document.createElement("canvas");
       cv.width = TS; cv.height = TS;
-      const c = cv.getContext("2d")!;
+      const c = cv.getContext("2d");
+      if (!c) continue;
       drawTile(c, t, v);
       vars.push(cv);
     }
@@ -30,15 +31,27 @@ function speckle(c: Ctx, base: string, cols: string[], v: number, density = 0.15
 }
 function treeShape(c: Ctx, leaf: string, dark: string, light: string, trunk: string, ground: string, gdark: string, v: number) {
   speckle(c, ground, [gdark], v, 0.1);
-  px(c, 6, 11, 4, 5, trunk);
+  px(c, 3, 12, 12, 4, "#214f35");
+  px(c, 6, 11, 4, 5, trunk); px(c, 7, 11, 1, 5, "#ab7b46");
   px(c, 2, 2, 12, 9, leaf); px(c, 4, 0, 8, 2, leaf); px(c, 1, 4, 14, 5, leaf);
   px(c, 2, 8, 12, 3, dark); px(c, 4, 2, 4, 2, light); px(c, 3, 4, 2, 2, light);
   if (v % 2) px(c, 10, 4, 2, 2, light);
+  for (let i=0;i<18;i++) { const x=2+Math.floor(hash(i, v, 8)*12), y=2+Math.floor(hash(i,v,9)*8); px(c,x,y,2,1,i%3?light:dark); }
+  px(c, 5, 1, 5, 1, light); px(c, 2, 5, 1, 3, dark);
 }
 
 function drawTile(c: Ctx, t: number, v: number) {
   switch (t) {
-    case T.GRASS: speckle(c, "#4ca33a", ["#3d8a2e", "#5ebd48", "#3d8a2e"], v, 0.18); break;
+    case T.FLOOR:
+      px(c,0,0,16,16,"#a4754c"); for(let y=0;y<4;y++){px(c,0,y*4+3,16,1,"#735039");px(c,(y%2)*8,y*4,1,3,"#735039");px(c,2,y*4,5,1,"#bd9262");} break;
+    case T.PANEL:
+      px(c,0,0,16,16,"#ddd4b1");px(c,0,0,2,16,"#654b39");px(c,0,12,16,4,"#654b39");px(c,3,2,11,1,"#f1e7c6");break;
+    case T.DOOR:
+      px(c,0,0,16,16,"#553b32");px(c,2,0,12,16,"#272a32");px(c,0,14,16,2,"#c4ad7d");px(c,2,1,1,13,"#d0b07b");break;
+    case T.FURNITURE: px(c,0,0,16,16,"#a4754c");break;
+    case T.GRASS:
+      speckle(c, "#519650", ["#4b8d49", "#60a45a", "#488b48"], v, 0.13);
+      if(v<3){px(c,3+v*3,10,1,3,"#397341");px(c,2+v*3,9,1,2,"#6dac62");px(c,4+v*3,8,1,3,"#78b46b");} break;
     case T.FLOWER: speckle(c, "#4ca33a", ["#3d8a2e"], v, 0.15); px(c, 4, 5, 2, 2, ["#ff6080", "#ffe040", "#ffffff", "#80a0ff"][v]); px(c, 11, 10, 2, 2, ["#ffe040", "#ff6080", "#c080ff", "#ffffff"][v]); px(c, 5, 7, 1, 2, "#2d6a20"); break;
     case T.PATH: speckle(c, "#c8a468", ["#b08c50", "#d8b880", "#a07c44"], v, 0.25); break;
     case T.WATER: px(c, 0, 0, TS, TS, "#2a6ad0"); px(c, (v * 4) % 12, 4, 4, 1, "#6aa8ff"); px(c, (v * 5 + 6) % 12, 11, 5, 1, "#5090f0"); px(c, 2, 8, 2, 1, "#1a50b0"); break;
@@ -75,13 +88,14 @@ function drawTile(c: Ctx, t: number, v: number) {
 export function drawChar(c: Ctx, x: number, y: number, pal: Palette, dir: number, frame: number, weapon?: { kind: WeaponKind; color: string } | null, attack = 0) {
   // x,y = feet center. 12x18 sprite.
   const ox = Math.round(x - 6), oy = Math.round(y - 18);
-  const step = frame % 2 === 1 ? 1 : 0;
+  const step = frame % 4 === 1 ? 1 : frame % 4 === 3 ? -1 : 0;
   px(c, ox + 2, oy + 17, 8, 2, "rgba(0,0,0,0.3)");
   // legs
   px(c, ox + 3, oy + 13, 2, 4 - step, pal.legs);
   px(c, ox + 7, oy + 13, 2, 3 + step, pal.legs);
   px(c, ox + 3, oy + 16 - step, 2, 1, "#2a1a10"); px(c, ox + 7, oy + 15 + step, 2, 1, "#2a1a10");
   // body
+  px(c, ox + (dir === 1 ? 8 : 0), oy + 8, 4, 7, "#31464e");
   px(c, ox + 2, oy + 8, 8, 6, pal.body);
   px(c, ox + 2, oy + 12, 8, 1, "rgba(0,0,0,0.25)");
   px(c, ox + 1, oy + 9, 1, 4, pal.body); px(c, ox + 10, oy + 9, 1, 4, pal.body);
@@ -99,6 +113,8 @@ export function drawChar(c: Ctx, x: number, y: number, pal: Palette, dir: number
     px(c, ox + (f > 0 ? 1 : 7), oy + 2, 4, 5, pal.hair);
     px(c, ox + (f > 0 ? 7 : 4), oy + 5, 1, 2, "#202030");
   }
+  px(c,ox+3,oy+9,2,3,"#ffffff30");
+  px(c,ox+3,oy+1,5,1,"#ffffff45");
   if (pal.accent) px(c, ox + 2, oy + 8, 8, 1, pal.accent);
   if (weapon) drawWeapon(c, x, y - 8, dir, weapon, attack);
 }
